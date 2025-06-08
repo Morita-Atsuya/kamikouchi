@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【詳細版】上高地 インタラクティブ・プランナー | 道中の見どころ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Earthy Harmony -->
+    <!-- Application Structure Plan: The application uses a two-tab main navigation ("Day 1 Plan", "Day 2+ Options") to clearly separate the user's fixed schedule from the decision-making part of their trip. The Day 1 section provides a static, easy-to-read timeline. The core of the application is the "Day 2+" section. Here, users select a route (Myojin, Tokusawa, Yokoo) via large, clickable cards. This selection dynamically updates a detail area below. To handle the extensive descriptions from the source document without cluttering the interface, this detail area features highlight cards that, when clicked, open a modal window. This modal presents the full, detailed text and source links for that specific point of interest. This layered information architecture (Tabs -> Cards -> Modals) allows users to gracefully move from a broad overview to specific, in-depth information, which is a highly effective way to present a large volume of content in an explorable format. -->
+    <!-- Visualization & Content Choices:
+        - Main Navigation (Goal: Organize): Two main tabs provide a clear, high-level structure.
+        - Route Selection (Goal: Organize/Inform): Interactive cards (HTML/CSS/JS) for each route serve as the primary entry point for exploration in the Day 2 section.
+        - On-the-Trail Experiences (Goal: Explore/Inform): Clickable highlight cards act as triggers for modal windows. This interaction encourages exploration of specific points of interest.
+        - Modal Window (Goal: Inform in Detail): The modal is the key element for delivering the detailed content. It presents the full text from the source document, including paragraphs and source links (`<a>` tags), providing depth and credibility as requested.
+        - Objective Data Comparison (Goal: Compare): A grouped bar chart (Chart.js/Canvas) remains to offer a clear, at-a-glance comparison of the time commitment for each route, a crucial factor in decision-making.
+        - Justification: This design directly addresses the user's request for more detailed information by integrating it into a modal system, which maintains UI clarity and improves usability over a long, scrolling page. NO SVG/Mermaid is used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #F8F9FA;
+            color: #343A40;
+        }
+        .main-tab-active {
+            background-color: #4A5D54; /* Deep Forest Green */
+            color: #FFFFFF;
+        }
+        .route-card.active {
+            transform: scale(1.03);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            border-color: #4A5D54;
+        }
+        .highlight-card {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .highlight-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.07);
+        }
+        .detail-tab.active {
+            border-color: #4A5D54;
+            color: #4A5D54;
+            font-weight: 700;
+        }
+        .content-fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 40vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        #modal-overlay {
+            background-color: rgba(0,0,0,0.5);
+            transition: opacity 0.3s ease-in-out;
+        }
+        #modal-content {
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+        .prose a {
+            color: #2563eb;
+        }
+        .prose a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-7xl">
+        
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-5xl font-bold text-[#4A5D54]">上高地 道中の見どころプランナー</h1>
+            <p class="mt-3 text-lg text-gray-600">各コースで出会える風景や体験を比べて、あなたにぴったりのルートを見つけましょう。</p>
+        </header>
+
+        <main>
+            <!-- Main Tab Navigation -->
+            <div class="mb-8">
+                <div class="flex justify-center rounded-lg bg-gray-200 p-1 max-w-md mx-auto">
+                    <button id="main-tab-day1" class="main-tab-btn main-tab-active text-lg font-bold py-2 px-6 w-1/2 rounded-md focus:outline-none transition-colors duration-300">1日目プラン</button>
+                    <button id="main-tab-day2" class="main-tab-btn text-lg font-bold py-2 px-6 w-1/2 rounded-md text-gray-600 hover:bg-gray-300 focus:outline-none transition-colors duration-300">2日目以降の選択肢</button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div id="content-day1" class="content-area content-fade-in">
+                <section class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                    <h2 class="text-2xl font-bold text-center mb-2 text-[#6C584C]">【1日目午後】大正池への散策路</h2>
+                    <p class="text-center text-gray-600 mb-8 max-w-3xl mx-auto">ご計画の通り、1日目の午後に西糸屋山荘から大正池へ向かう散策路について、道中の主なポイントを詳細に解説します。到着後の足慣らしとして、また上高地の壮大な自然の序章として最適なコースです。</p>
+                    <div class="max-w-4xl mx-auto mt-8 space-y-8">
+                        <div class="bg-amber-50 border-l-4 border-[#C6AC8F] p-5 rounded-r-lg">
+                            <h3 class="text-xl font-bold text-[#6C584C] mb-2">道中の風景</h3>
+                            <div class="prose max-w-none">
+                                <p><strong>梓川右岸の遊歩道とウェストン碑:</strong> 散策路は主に梓川の右岸に沿っており、常に川の清流と、その向こうにそびえる六百山や霞沢岳の山々を眺めながら歩くことができます。ルートの中間地点あたりには、日本に近代登山を普及させ、「日本アルプスの父」と称されるウォルター・ウェストンの功績を称えたレリーフが岩壁に埋め込まれています。ここは上高地の中でも歴史的に重要な場所の一つです。(出典: <a href="https://www.kamikochi.or.jp/spots/weston" target="_blank">上高地公式サイト</a>)</p>
+                                <p><strong>田代湿原と田代池:</strong> 大正池の手前に広がる田代湿原は、霞沢岳からの湧水によって形成された、上高地の中でも特に原始的な景観を留める場所です。6月には、ワタスゲの白い可憐な穂が風に揺れる牧歌的な風景が見られることがあります。湿原の中に点在する田代池は、水が非常に清らかで、冬でも凍結しないため、年間を通じて静謐な美しさを見せてくれます。(出典: <a href="https://www.kamikochi.or.jp/spots/tashiro" target="_blank">上高地公式サイト</a>)</p>
+                            </div>
+                        </div>
+                        <div class="bg-amber-50 border-l-4 border-[#C6AC8F] p-5 rounded-r-lg">
+                            <h3 class="text-xl font-bold text-[#6C584C] mb-2">終点・大正池</h3>
+                            <div class="prose max-w-none">
+                                <p>大正4年（1915年）の焼岳の大噴火により誕生した池であり、その劇的な成り立ちが自然のダイナミズムを物語っています。水面に林立する立ち枯れの木々は、大正池ならではの幻想的で神秘的な景観です。風のない穏やかな日には、池の水面が鏡のように正面の焼岳や穂高連峰の姿を映し出し、「逆さ焼岳」と呼ばれる絶景を見ることができます。ご予定の16時頃は、太陽が西に傾き、山肌に深い陰影が生まれやすい写真撮影にも最適な時間帯です。(出典: <a href="https://www.kamikochi.or.jp/spots/taisho" target="_blank">上高地公式サイト</a>)</p>
+                            </div>
+                        </div>
+                        <div class="bg-amber-50 border-l-4 border-[#C6AC8F] p-5 rounded-r-lg">
+                            <h3 class="text-xl font-bold text-[#6C584C] mb-2">夜の活動のポイント</h3>
+                            <div class="prose max-w-none">
+                                <p>上高地は国内有数の星空観察スポットです。空気が澄んだ晴天の夜には、天の川が肉眼でもはっきりと見えます。6月は夏の星座が昇り始める時期です。安全のため、散策は宿泊施設周辺や照明のある河童橋付近に限り、懐中電灯と防寒着を必ず携行してください。(出典: <a href="https://www.kamikochi-vc.or.jp/qa/" target="_blank">上高地ビジターセンター</a>)</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            
+            <div id="content-day2" class="content-area hidden">
+                <section id="planner" class="mb-12">
+                    <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 md:p-8">
+                        <h2 class="text-2xl font-bold text-center mb-6 text-[#6C584C]">1. 気になるコースを選択</h2>
+                        <p class="text-center text-gray-600 mb-8">各コースをクリックすると、道中で体験できることや選択のポイントが表示されます。</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                            <div id="route-myojin" class="route-card bg-white p-6 rounded-xl shadow-md cursor-pointer border-2 border-gray-200 hover:shadow-xl hover:border-[#4A5D54] transition-all duration-300">
+                                <div class="text-4xl mb-3">🏞️</div>
+                                <h3 class="text-xl font-bold text-gray-800">明神池コース</h3>
+                                <p class="text-gray-600 mt-1">約1.5～2時間</p>
+                            </div>
+                            <div id="route-tokusawa" class="route-card bg-white p-6 rounded-xl shadow-md cursor-pointer border-2 border-gray-200 hover:shadow-xl hover:border-[#4A5D54] transition-all duration-300">
+                                <div class="text-4xl mb-3">🌿</div>
+                                <h3 class="text-xl font-bold text-gray-800">徳沢コース</h3>
+                                <p class="text-gray-600 mt-1">約4～5時間</p>
+                            </div>
+                            <div id="route-yokoo" class="route-card bg-white p-6 rounded-xl shadow-md cursor-pointer border-2 border-gray-200 hover:shadow-xl hover:border-[#4A5D54] transition-all duration-300">
+                                <div class="text-4xl mb-3">🏔️</div>
+                                <h3 class="text-xl font-bold text-gray-800">横尾コース</h3>
+                                <p class="text-gray-600 mt-1">約6～7時間</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="details" class="mb-12 min-h-[400px] transition-all duration-500">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                         <div class="text-center mb-6">
+                            <h2 id="detail-title" class="text-3xl font-bold text-[#4A5D54]"></h2>
+                        </div>
+                        <div class="border-b border-gray-200 mb-6">
+                            <nav class="-mb-px flex space-x-4 sm:space-x-8 justify-center" aria-label="Tabs">
+                                <button data-tab="highlights" class="detail-tab whitespace-nowrap py-3 px-1 sm:px-4 border-b-2 font-medium text-base sm:text-lg border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">道中の体験</button>
+                                <button data-tab="points" class="detail-tab whitespace-nowrap py-3 px-1 sm:px-4 border-b-2 font-medium text-base sm:text-lg border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">選択のポイント</button>
+                            </nav>
+                        </div>
+                        <div id="detail-content-container">
+                             <!-- Dynamic Content Here -->
+                        </div>
+                    </div>
+                </section>
+                
+                 <section id="comparison" class="mb-12">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                        <h2 class="text-2xl font-bold text-center mb-2 text-[#6C584C]">客観データ比較：往復所要時間</h2>
+                        <p class="text-center text-gray-600 mb-8">ルート選択の判断材料として、各コースの所要時間をご確認ください。</p>
+                        <div class="chart-container">
+                            <canvas id="timeComparisonChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Structure -->
+    <div id="modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div id="modal-backdrop" class="absolute inset-0"></div>
+        <div id="modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 relative opacity-0 transform scale-95">
+             <button id="modal-close-btn" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 text-3xl">&times;</button>
+             <h3 id="modal-title" class="text-2xl sm:text-3xl font-bold mb-4 text-[#4A5D54]"></h3>
+             <div id="modal-body" class="prose max-w-none text-gray-800"></div>
+        </div>
+    </div>
+
+    <script>
+    const routeData = {
+        'myojin': {
+            name: '明神池コース',
+            highlights: [
+                { id: 'myojin-paths', icon: '🔄', title: '二つの遊歩道の選択', description: '梓川の「左岸」と「右岸」、往復で異なる風景を楽しめます。',
+                  long_description: `
+                    <p class="mb-4">このコースの最大の特徴は、河童橋から明神池へ向かう際に、梓川の「左岸」と「右岸」のどちらを歩くか選択できる点です。往路と復路で異なる岸を歩くことで、限られた時間の中でも上高地の多様な自然を満喫できます。</p>
+                    <h4 class="font-bold text-lg mb-2">左岸コース</h4>
+                    <p class="mb-4">梓川の流れに沿った、比較的開けた視界の道が続きます。右岸に比べて距離がやや短く、効率よく明神池へ向かうことができます。道中では、上高地の春を告げるニリンソウの群落に出会えることもあります。</p>
+                    <h4 class="font-bold text-lg mb-2">右岸コース（自然探勝路）</h4>
+                    <p>こちらは岳沢湿原などを経由する、より森林浴の趣が強い静かな道です。しっとりとした苔むした森、清らかな沢の流れ、そして林床に咲く可憐な植物などをじっくりと観察しながら歩くのに適しています。特に6月には、岳沢湿原で鮮やかなレンゲツツジが見られる可能性があります。</p>
+                    <p class="text-sm text-gray-600 mt-4">出典: <a href="https://www.kamikochi.or.jp/learn/course-myojin" target="_blank">上高地公式サイト - 河童橋～明神池コース</a></p>`
+                },
+                { id: 'myojin-culture', icon: '⛩️', title: '歴史と文化に触れる（明神エリア）', description: '明神岳の岩壁や、嘉門次小屋、穂高神社奥宮の神聖な雰囲気を体験できます。',
+                  long_description: `
+                    <p class="mb-4">明神エリアは、上高地の自然美だけでなく、古くからの信仰と文化が息づく場所です。明神橋の上に立つと、正面には圧倒的な迫力で明神岳の岩壁がそそり立ちます。</p>
+                    <h4 class="font-bold text-lg mb-2">穂高神社奥宮と明神池</h4>
+                    <p class="mb-4">日本アルプスの総鎮守として知られる穂高神社。その奥宮が明神池のほとりに静かに佇んでいます。ひょうたん形をした明神池は、一之池と二之池からなり、鏡のような水面が周囲の木々や穂高の山々を映し出す光景は、まさに神域と呼ぶにふさわしい神秘的な雰囲気に満ちています。毎年10月8日に行われる御船神事では、平安装束をまとった神職が龍頭鷁首の舟を浮かべ、1年の山の安全に感謝を捧げます。この静寂と美しさは、多くの人々を魅了し、強力なパワースポットとしても知られています。(出典: <a href="https://www.hotakajinja.com/" target="_blank">穂高神社公式サイト</a>)</p>
+                    <h4 class="font-bold text-lg mb-2">嘉門次小屋</h4>
+                    <p>日本近代登山の父ウォルター・ウェストンを案内した伝説の猟師、上條嘉門次が暮らした場所に建てられた歴史ある山小屋です。名物の岩魚の塩焼きは、生け簀からあげたばかりの新鮮な岩魚を囲炉裏でじっくりと1時間ほどかけて焼き上げた逸品。遠赤外線効果で頭から骨まで柔らかく、その香ばしい香りとふっくらとした身は、歩き疲れた体にご馳走です。歴史を感じる茅葺き屋根の小屋でいただくことで、より一層味わい深く感じられるでしょう。(出典: <a href="http://www.kamontigoya.jp/" target="_blank">嘉門次小屋公式サイト</a>)</p>`
+                }
+            ],
+            points: [ { title: '長距離歩行への自信', description: '高低差がほとんどなく、歩行距離も短い。' }, { title: '景色の好み', description: '川沿いの開けた景色と、静かな森のどちらを優先するかでルートを選べます。' }, { title: '興味の対象', description: '神社仏閣や食文化（岩魚の塩焼き）への関心が決め手になります。' } ]
+        },
+        'tokusawa': {
+            name: '徳沢コース',
+            highlights: [
+                { id: 'tokusawa-flowers', icon: '🌼', title: 'ニリンソウの群落', description: '6月は道中が白い花の絨毯に。この時期、このコースでしか見られない圧巻の光景です。',
+                  long_description: `<p class="mb-4">明神から徳沢へ向かう遊歩道は、日本でも最大級とされるニリンソウの群生地として知られています。特に6月上旬から中旬にかけてが見頃で、林床が一面、可憐な白い花で埋め尽くされる光景は圧巻の一言です。</p><p>太陽の光を浴びて一斉に開く花の絨毯は、まるで天国のような美しさ。この風景に出会うためだけに、この時期の徳沢を目指すハイカーも少なくありません。ニリンソウだけでなく、コミヤマカタバミやラショウモンカズラなど、他の春の花々も道中を彩ります。この時期限定の特別な自然現象であり、河童橋周辺の散策だけでは決して味わうことのできない、奥上高地ならではの感動的な体験と言えるでしょう。</p><p class="text-sm text-gray-600 mt-4">出典: <a href="https://www.kamikochi-tokusawa.com/flowers.html" target="_blank">徳沢ロッヂ公式サイト - 花だより</a></p>`},
+                { id: 'tokusawa-history', icon: '🏞️', title: '徳沢の開放感と歴史', description: '長い林間を抜けた先に広がる大草原。かつての牧場の名残である開放的な空間で休憩できます。',
+                  long_description: `<p class="mb-4">長い林間の道を経て徳沢に到着すると、視界が大きく開け、広大な草原が目の前に広がります。この開放感は、それまでの道のりとの対比でより強く感じられ、多くのハイカーがここでザックを下ろし、安らぎのひとときを過ごします。</p><p>この広々とした土地は、かつて牛馬の放牧が行われていた牧場の跡地です。その歴史は、現在の牧歌的で落ち着いた雰囲気に繋がっています。点在するハルニレの巨木が、心地よい木陰を提供してくれます。</p><p class="text-sm text-gray-600 mt-4">出典: <a href="https://www.kamikochi.or.jp/learn/history" target="_blank">上高地公式サイト - 歴史</a></p>`},
+                { id: 'tokusawa-literature', icon: '📖', title: '徳澤園と文学の世界', description: '文豪・井上靖の小説「氷壁」の舞台。名物のソフトクリームも楽しめます。',
+                  long_description: `<p class="mb-4">草原に佇む「徳澤園」は、文豪・井上靖の山岳小説『氷壁』の主な舞台としてあまりにも有名です。小説では、前穂高岳の岩壁で起こった遭 nạn事故を巡る人間模様が描かれ、徳澤園はその物語の中心地として登場します。園内には資料室もあり、小説の世界に浸ることができます。</p><p>歴史ある山小屋の風情と、洗練されたカフェが同居するこの場所では、名物のソフトクリームを味わうのが定番。濃厚なミルクの味わいは、長距離を歩いてきたハイカーにとって最高のご褒美です。</p><p class="text-sm text-gray-600 mt-4">出典: <a href="https://www.tokusawaen.com/" target="_blank">徳澤園公式サイト</a></p>`}
+            ],
+            points: [ { title: '長距離歩行への自信', description: '平坦な道が続くが、歩行距離が長くなる。' }, { title: '季節性への期待', description: '6月限定の「ニリンソウの大群落」に価値を感じるかが大きなポイントです。' }, { title: '求める雰囲気', description: '賑やかなエリアから離れ、「上高地の奥座敷」の静けさを体験したい場合に適しています。' } ]
+        },
+        'yokoo': {
+            name: '横尾コース',
+            highlights: [
+                { id: 'yokoo-atmosphere', icon: '🧗', title: '登山基地の雰囲気', description: 'すれ違う人々の装備が本格的になり、北アルプス登山の玄関口の空気を感じられます。',
+                  long_description: `<p class="mb-4">徳沢を過ぎて横尾へ向かう道は、それまでとは明らかに雰囲気が変わります。軽装のハイカーは減り、大きなザックを背負い、ヘルメットを携えた登山者の姿が目立つようになります。ここは、槍ヶ岳や穂高連峰といった日本を代表する名峰への入口。まさに「北アルプスのベース基地」なのです。</p><p>横尾山荘の周りや広大なテント場には、厳しい山行に備える人々の期待と緊張感、そして無事に下山してきた人々の安堵感が混じり合った、独特の空気が流れています。色とりどりのテントが並ぶ光景も、本格的な山岳エリアならではのものです。一般のハイカーが到達できる最奥の地の一つであり、これ以上進まなくとも、その「アルピニズムの現場」の息吹に触れるだけでも、訪れる価値のある場所と言えます。</p><p class="text-sm text-gray-600 mt-4">出典: <a href="https://www.yokoo-sanso.co.jp/" target="_blank">横尾山荘公式サイト</a></p>`},
+                { id: 'yokoo-view', icon: '🏔️', title: '山のスケール感（屏風岩と前穂高岳）', description: '道中、巨大な屏風岩が見え隠れし、横尾に近づくほど山のスケールを実感できます。',
+                  long_description: `<p class="mb-4">横尾への道中、左手前方には常に巨大な岩壁「屏風岩（びょうぶいわ）」がそそり立っています。その名の通り、まるで巨大な屏風を垂直に立てたような高さ約600mの大岩壁は、日本有数のロッククライミングの聖地でもあり、見る者を圧倒します。</p><p>そして、横尾のシンボルである赤い吊り橋「横尾大橋」の上から正面に望む前穂高岳の荒々しい岩壁の姿は、まさに圧巻です。河童橋から見える穂高連峰とはまた違う、より間近に迫るその迫力は、長い道のりを歩いてきた者だけが味わえるご褒美です。ここまで来ると、山の懐に深く抱かれていることを実感し、自然への畏敬の念を抱かずにはいられないでしょう。</p><p class="text-sm text-gray-600 mt-4">出典: <a href="https://www.go-nagano.net/topics_detail6/id=3741" target="_blank">GO! NAGANO 長野県公式観光サイト</a></p>`}
+            ],
+            points: [ { title: '長距離歩行への自信', description: '平坦基調だが、長時間の歩行を要するため、相応の体力が必要。' }, { title: '「山の深部」への興味', description: '観光地としてだけでなく、「アルピニズムの現場」の雰囲気に触れてみたい場合に魅力的です。' }, { title: '景色の質', description: 'より雄大で迫力ある山岳景観のために、長い時間をかける価値を見出せるかが重要です。' } ]
+        }
+    };
+    
+    let currentRouteId = null;
+    let currentDetailTab = 'highlights';
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        const mainTabDay1 = document.getElementById('main-tab-day1');
+        const mainTabDay2 = document.getElementById('main-tab-day2');
+        const contentDay1 = document.getElementById('content-day1');
+        const contentDay2 = document.getElementById('content-day2');
+        const routeCards = document.querySelectorAll('.route-card');
+        const detailTabs = document.querySelectorAll('.detail-tab');
+        const detailContentContainer = document.getElementById('detail-content-container');
+        const detailTitle = document.getElementById('detail-title');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalBackdrop = document.getElementById('modal-backdrop');
+        const modalContent = document.getElementById('modal-content');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        mainTabDay1.addEventListener('click', () => switchMainTab('day1'));
+        mainTabDay2.addEventListener('click', () => switchMainTab('day2'));
+
+        function switchMainTab(tabName) {
+            const isActive = tabName === 'day1';
+            mainTabDay1.classList.toggle('main-tab-active', isActive);
+            mainTabDay2.classList.toggle('main-tab-active', !isActive);
+            contentDay1.classList.toggle('hidden', !isActive);
+            contentDay2.classList.toggle('hidden', isActive);
+            if (!contentDay1.classList.contains('hidden')) contentDay1.classList.add('content-fade-in');
+            if (!contentDay2.classList.contains('hidden')) contentDay2.classList.add('content-fade-in');
+        }
+
+        function openModal(title, body) {
+            modalTitle.textContent = title;
+            modalBody.innerHTML = body;
+            modalOverlay.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => {
+                modalOverlay.classList.remove('opacity-0');
+                modalContent.classList.remove('opacity-0', 'scale-95');
+            }, 10);
+        }
+
+        function closeModal() {
+            modalOverlay.classList.add('opacity-0');
+            modalContent.classList.add('opacity-0', 'scale-95');
+            document.body.style.overflow = '';
+            setTimeout(() => {
+                modalOverlay.classList.add('hidden');
+            }, 300);
+        }
+
+        modalCloseBtn.addEventListener('click', closeModal);
+        modalBackdrop.addEventListener('click', closeModal);
+
+        function updateDetailDisplay() {
+            if (!currentRouteId) return;
+            const data = routeData[currentRouteId];
+            let html = '';
+            
+            if (currentDetailTab === 'highlights') {
+                html = `<p class="text-center text-gray-500 -mt-4 mb-6">各カードをクリックすると詳細が表示されます。</p><div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 content-fade-in">
+                    ${data.highlights.map(h => `<div data-highlight-id="${h.id}" class="highlight-card bg-gray-50 rounded-lg p-5 border border-gray-200"><div class="text-4xl mb-3">${h.icon}</div><h4 class="font-bold text-lg text-gray-800">${h.title}</h4><p class="text-gray-600 mt-1 text-sm">${h.description}</p></div>`).join('')}
+                </div>`;
+            } else if (currentDetailTab === 'points') {
+                html = `<div class="space-y-6 max-w-4xl mx-auto content-fade-in">
+                    ${data.points.map(p => `<div class="bg-amber-50 border-l-4 border-[#C6AC8F] p-5 rounded-r-lg"><h4 class="text-lg font-bold text-[#6C584C]">${p.title}</h4><p class="text-gray-700 mt-1">${p.description}</p></div>`).join('')}
+                </div>`;
+            }
+            detailContentContainer.innerHTML = html;
+
+            if (currentDetailTab === 'highlights') {
+                document.querySelectorAll('.highlight-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const highlightId = card.dataset.highlightId;
+                        const highlightData = routeData[currentRouteId].highlights.find(h => h.id === highlightId);
+                        if(highlightData) {
+                            openModal(highlightData.title, highlightData.long_description);
+                        }
+                    });
+                });
+            }
+        }
+
+        routeCards.forEach(card => {
+            card.addEventListener('click', () => {
+                currentRouteId = card.id.replace('route-', '');
+                routeCards.forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+                detailTitle.textContent = routeData[currentRouteId].name;
+                currentDetailTab = 'highlights';
+                detailTabs.forEach(t => t.classList.remove('active'));
+                document.querySelector('.detail-tab[data-tab="highlights"]').classList.add('active');
+                updateDetailDisplay();
+            });
+        });
+
+        detailTabs.forEach(button => {
+            button.addEventListener('click', () => {
+                if (!currentRouteId) return;
+                currentDetailTab = button.dataset.tab;
+                detailTabs.forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+                updateDetailDisplay();
+            });
+        });
+
+        const ctx = document.getElementById('timeComparisonChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: { labels: ['明神池', '徳沢', '横尾'], datasets: [{ label: '最大所要時間 (時間)', data: [2, 5, 7], backgroundColor: 'rgba(74, 93, 84, 0.7)', borderColor: 'rgba(74, 93, 84, 1)', borderWidth: 1, borderRadius: 5, }, { label: '最小所要時間 (時間)', data: [1.5, 4, 6], backgroundColor: 'rgba(198, 172, 143, 0.7)', borderColor: 'rgba(198, 172, 143, 1)', borderWidth: 1, borderRadius: 5, }] },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function(c) { return `${c.dataset.label}: ${c.raw}時間`; } } } }, scales: { y: { grid: { display: false } }, x: { beginAtZero: true, title: { display: true, text: '往復所要時間 (時間)' } } } }
+        });
+        
+        document.getElementById('route-myojin').click();
+    });
+    </script>
+</body>
+</html>
